@@ -50,6 +50,14 @@ public:
         return item;
     }
 
+    template <typename... Args>
+    void emplace(Args &&...args)
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        queue_.emplace(std::forward<Args>(args)...);
+        cv_.notify_one();
+    }
+
 private:
     std::queue<T> queue_;
     std::mutex mutex_;

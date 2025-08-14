@@ -11,7 +11,7 @@ template <typename Compare>
 class OrderBookSide
 {
 public:
-    explicit OrderBookSide(Side side);
+    explicit OrderBookSide(Order::Side side);
 
     void add_order(const Order &order);
     void remove_order(uint64_t order_id);
@@ -28,7 +28,7 @@ public:
     std::map<double, std::list<Order>, Compare> &price_levels() { return price_levels_; }
 
 private:
-    Side side_;
+    Order::Side side_;
     // Map price -> list of orders at that price
     // For Buy: sorted descending; for Sell: ascending
     // To avoid big overhead due to std::function since it's a type-erased wrapper

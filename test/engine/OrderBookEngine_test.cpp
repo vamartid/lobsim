@@ -1,33 +1,21 @@
 #include <gtest/gtest.h>
 
 #include "engine/OrderBookEngine.h"
-
-#include <sstream>
+#include "test_utils/OrderFactory.h"
+#include "utils/log/StreamUtils.h"
+#include <ostream>
 #include <iostream>
 
 class OrderBookEngineTest : public ::testing::Test
 {
 protected:
     OrderBookEngine engine;
-
-    // Helper to capture std::cout output
-    std::string capture_output(std::function<void()> func)
-    {
-        std::stringstream buffer;
-        std::streambuf *old = std::cout.rdbuf(buffer.rdbuf());
-        func();
-        std::cout.rdbuf(old); // restore original buffer
-        return buffer.str();
-    }
 };
 
 TEST_F(OrderBookEngineTest, AddOrderAddsToCorrectSide)
 {
-    Order buy_order{1, 0, 100.0, 10, Side::Buy};
-    Order sell_order{2, 0, 101.0, 5, Side::Sell};
-
-    engine.add_order(buy_order);
-    engine.add_order(sell_order);
+    engine.add_order(TestOrderFactory::CreateBuy(1, 100.0, 10));
+    engine.add_order(TestOrderFactory::CreateSell(2, 101.0, 5));
 
     // Check best prices
     auto best_bid = engine.bids().best_price();
@@ -42,8 +30,7 @@ TEST_F(OrderBookEngineTest, AddOrderAddsToCorrectSide)
 
 TEST_F(OrderBookEngineTest, CancelOrderRemovesOrder)
 {
-    Order buy_order{1, 0, 100.0, 10, Side::Buy};
-    engine.add_order(buy_order);
+    engine.add_order(TestOrderFactory::CreateBuy(1, 100.0, 10));
 
     ASSERT_TRUE(engine.bids().best_price().has_value());
 
@@ -54,35 +41,48 @@ TEST_F(OrderBookEngineTest, CancelOrderRemovesOrder)
 
 TEST_F(OrderBookEngineTest, MatchOrderPrintsMatch)
 {
-    // Add sell order first
-    Order sell_order{1, 0, 100.0, 10, Side::Sell};
-    engine.add_order(sell_order);
+    // Arrange
+    engine.add_order(TestOrderFactory::CreateSell(1, 100.0, 10));
 
-    // Incoming buy order matches the sell order price
-    Order buy_order{2, 0, 100.0, 5, Side::Buy};
+    // Act
+    // Capture output to a stream
+    std::ostringstream captured_os;
 
-    std::string output = capture_output([&]()
-                                        { engine.match_order(buy_order); });
+    utils::stream::capture_output(std::cout, captured_os, [&]()
+                                  { engine.match_order(TestOrderFactory::CreateBuy(2, 100.0, 5)); });
+    // Strip ANSI codes directly from the captured stream's buffer
+    std::istringstream captured_is(captured_os.str());
+    std::ostringstream clean_os;
+    utils::stream::strip_ansi(clean_os, captured_is);
 
-    std::string clean_output = utils::string::strip_ansi(output);
-    EXPECT_NE(clean_output.find("Match Detail:"), std::string::npos);
-    EXPECT_NE(clean_output.find("BUY order (ID: 2)"), std::string::npos);
-    EXPECT_NE(clean_output.find("SELL order (ID: 1)"), std::string::npos);
-    EXPECT_NE(clean_output.find("for 5 units"), std::string::npos);
-    EXPECT_NE(clean_output.find("at price 100.00"), std::string::npos);
+    // Search in the cleaned stream without creating a final string copy
+    std::string line;
+    bool found_match = false, found_buy = false, found_sell = false, found_qty = false, found_price = false;
+    std::cout << clean_os.str() << '\n';
+    std::istringstream clean_is(clean_os.str());
+    while (std::getline(clean_is, line))
+    {
+        found_match |= line.find("Match Detail:") != std::string::npos;
+        found_buy |= line.find("BUY order (ID: 2)") != std::string::npos;
+        found_sell |= line.find("SELL order (ID: 1)") != std::string::npos;
+        found_qty |= line.find("for 5 units") != std::string::npos;
+        found_price |= line.find("at price 100") != std::string::npos;
+    }
+
+    // Assert
+    EXPECT_TRUE(found_match);
+    EXPECT_TRUE(found_buy);
+    EXPECT_TRUE(found_sell);
+    EXPECT_TRUE(found_qty);
+    EXPECT_TRUE(found_price);
 }
 
 TEST_F(OrderBookEngineTest, NoMatchIfPricesDontCross)
 {
-    // Add sell order at price 102
-    Order sell_order{1, 0, 102.0, 10, Side::Sell};
-    engine.add_order(sell_order);
-
-    // Incoming buy order at lower price 100 - no match expected
-    Order buy_order{2, 0, 100.0, 5, Side::Buy};
-
-    std::string output = capture_output([&]()
-                                        { engine.add_order(buy_order); });
-
-    EXPECT_TRUE(output.empty());
+    engine.add_order(TestOrderFactory::CreateSell(1, 102.0, 10));
+    std::ostringstream captured_os;
+    utils::stream::capture_output(std::cout, captured_os, [&]()
+                                  { engine.match_order(TestOrderFactory::CreateBuy(2, 100.0, 5)); });
+    // Check that nothing was printed
+    EXPECT_TRUE(captured_os.str().empty());
 }

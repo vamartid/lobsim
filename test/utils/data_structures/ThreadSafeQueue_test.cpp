@@ -15,6 +15,26 @@ TEST(ThreadSafeQueueTest, PushAndPop)
     EXPECT_EQ(result.value(), 42);
 }
 
+TEST(ThreadSafeQueueTest, EmplaceConstructsAndPushes)
+{
+    struct TestStruct
+    {
+        int a;
+        double b;
+        std::string c;
+    };
+
+    ThreadSafeQueue<TestStruct> queue;
+
+    queue.emplace(1, 2.5, "hello");
+
+    auto result = queue.pop();
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ(result->a, 1);
+    EXPECT_DOUBLE_EQ(result->b, 2.5);
+    EXPECT_EQ(result->c, "hello");
+}
+
 TEST(ThreadSafeQueueTest, PopFromEmptyReturnsNullopt)
 {
     ThreadSafeQueue<int> queue;

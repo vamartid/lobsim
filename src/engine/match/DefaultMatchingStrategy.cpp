@@ -1,13 +1,14 @@
 #include "engine/match/DefaultMatchingStrategy.h"
-#include "engine/match/MatchPrinter.h"
+#include "utils/log/Printer.h"
 
+#include <algorithm>
+#include <sstream>
 #include <iostream>
-#include <format>
 
 void DefaultMatchingStrategy::match(
     OrderBookSide<utils::comparator::Descending> &bids,
     OrderBookSide<utils::comparator::Ascending> &asks,
-    std::unordered_map<uint64_t, std::tuple<Side, double, std::list<Order>::iterator>> &id_lookup)
+    std::unordered_map<uint64_t, std::tuple<Order::Side, double, std::list<Order>::iterator>> &id_lookup)
 {
     while (true)
     {
@@ -30,7 +31,8 @@ void DefaultMatchingStrategy::match(
         Order &best_ask = ask_queue.front();
 
         uint64_t trade_qty = std::min(best_bid.quantity, best_ask.quantity);
-        // match_printer::print_match(best_bid, best_ask, trade_qty);
+
+        // printer::print_match(std::cout, best_ask, best_bid, trade_qty);
         // order_tracker.mark_matched(order_id);
 
         best_bid.quantity -= trade_qty;

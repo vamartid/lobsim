@@ -13,11 +13,15 @@
 class MarketFeeder
 {
 public:
-    MarketFeeder(ThreadSafeQueue<Order> &queue, std::shared_ptr<IRNG> rng, uint16_t feeder_id = 0, std::shared_ptr<OrderTracker> order_tracker = nullptr);
+    MarketFeeder(ThreadSafeQueue<Order> &queue, std::shared_ptr<IRNG> rng, uint16_t feeder_id = 0, std::shared_ptr<OrderTracker> order_tracker = nullptr, uint32_t delay = 0);
     void start();
     void stop();
 
 private:
+    static constexpr int DELAY_MIN = 45;
+    static constexpr int DELAY_MAX = 70;
+    static constexpr int DELAY_JITTER = 5;
+
     static constexpr double PRICE_MIN = 100.0;
     static constexpr double PRICE_MAX = 105.0;
 
@@ -33,8 +37,9 @@ private:
     std::atomic<bool> running_;
     std::thread worker_;
     ThreadSafeQueue<Order> &queue_; // no moves just reference binding
+    uint32_t delay_;                // Shift of the delay initial (DELAY_MIN-DELAY_MAX)
     uint16_t feeder_id_;
-    uint64_t order_id_ = 0;
+    uint64_t order_id_;
     std::shared_ptr<OrderTracker> order_tracker_;
 
     // Random generators

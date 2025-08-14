@@ -1,9 +1,9 @@
 #include <gtest/gtest.h>
-#include "test_utils/MockRNGHelpers.h"
 #include "utils/data_structures/ThreadSafeQueue.h"
-#include "core/MarketFeeder.h"
 #include "utils/random/RealRNG.h"
+#include "core/MarketFeeder.h"
 #include "utils/random/MockRNG.h"
+#include "test_utils/MockRNGHelpers.h"
 
 #include <unordered_set>
 #include <thread>
@@ -24,7 +24,7 @@ TEST(MarketFeederTest, FeedsOrdersIntoQueue)
     {
         EXPECT_GE(order->price, 0.0);
         EXPECT_GT(order->quantity, 0u);
-        EXPECT_TRUE(order->side == Side::Buy || order->side == Side::Sell);
+        EXPECT_TRUE(order.value().isBuy() || order.value().isSell());
         ++count;
     }
     EXPECT_GT(count, 0);
@@ -148,40 +148,41 @@ TEST(MarketFeederTest, StressTestRunsLonger)
 
 TEST(MarketFeederMockTest, ProducesOrdersWithMockedPriceAndQuantity)
 {
+    using Side = Order::Side;
     ThreadSafeQueue<Order> queue;
-    std::shared_ptr<MockRNG> mock_rng = make_mock_rng_from_orders({Order{1, 123456789u, 100.25, 50, Side::Buy}});
+
+    // Use factory parameters directly
+    std::shared_ptr<MockRNG> mock_rng = make_mock_rng_from_factory_params({{100.25, 50, Side::Sell}});
 
     MarketFeeder feeder(queue, mock_rng);
     feeder.start();
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
     feeder.stop();
 
-    auto order = queue.pop();
-    ASSERT_TRUE(order);
-
-    // EXPECT_EQ(order.id, 1);
-    // EXPECT_EQ(order.timestamp_ns, 123456789u);
-    EXPECT_EQ(order->side, Side::Buy);
-    EXPECT_DOUBLE_EQ(order->price, 100.25);
-    EXPECT_EQ(order->quantity, 50u);
+    auto order = queue.wait_and_pop();
+    std::cout << order.to_string() << "\n";
+    // ASSERT_TRUE(order);
+    EXPECT_TRUE(order.isSell());
+    EXPECT_EQ(order.quantity, 50u);
+    EXPECT_DOUBLE_EQ(order.price, 100.25);
 }
 
 TEST(MarketFeederMockTest, AlternatesBuyAndSellSides)
 {
+    using Side = Order::Side;
     ThreadSafeQueue<Order> queue;
-    // Setup price, quantity, and sides for 4 orders: Buy, Sell, Buy, Sell
-    std::vector<Order> expected_orders = {
-        Order{1, 0, 50.0, 5, Side::Buy},
-        Order{2, 0, 60.0, 10, Side::Sell},
-        Order{3, 0, 70.0, 15, Side::Buy},
-        Order{4, 0, 80.0, 20, Side::Sell}};
 
-    std::shared_ptr<MockRNG> mock_rng = make_mock_rng_from_orders(expected_orders);
+    // Factory parameters for 4 orders: Buy, Sell, Buy, Sell
+    std::vector<std::tuple<double, uint32_t, Side>> orders = {
+        {50.0, 5, Side::Buy},
+        {60.0, 10, Side::Sell},
+        {70.0, 15, Side::Buy},
+        {80.0, 20, Side::Sell}};
+
+    std::shared_ptr<MockRNG> mock_rng = make_mock_rng_from_factory_params(orders);
     MarketFeeder feeder(queue, mock_rng);
     feeder.start();
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
     feeder.stop();
 
     std::vector<Side> expected_sides = {Side::Buy, Side::Sell, Side::Buy, Side::Sell};
@@ -192,8 +193,8 @@ TEST(MarketFeederMockTest, AlternatesBuyAndSellSides)
     {
         auto order = queue.pop();
         ASSERT_TRUE(order);
-        // EXPECT_EQ(order->side, expected_sides[i]);
-        EXPECT_DOUBLE_EQ(order->price, expected_prices[i]);
+        EXPECT_EQ(order.value().side(), expected_sides[i]);
+        EXPECT_DOUBLE_EQ(order.value().price, expected_prices[i]);
         EXPECT_EQ(order->quantity, expected_quantities[i]);
     }
 }

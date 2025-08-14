@@ -41,10 +41,10 @@ private:
     // Your OrderBookSide::add_order/ OrderBookSide::remove_order do a linear search, which can be slow for large order books
     // Fast lookup: id -> (side, price, iterator to order)
     // Tracks: side (Buy or Sell) ,The price level, iterator to the exact order in the std::list<Order> inside the price level
-    std::unordered_map<uint64_t, std::tuple<Side, double, OrderIterator>> id_lookup_;
+    std::unordered_map<uint64_t, std::tuple<Order::Side, double, OrderIterator>> id_lookup_;
 
     template <typename SideType>
     void add_order_to_side(SideType &book_side, const Order &order);
     template <typename SideType>
-    void cancel_order_on_side(SideType &book_side, Side side, double price, OrderIterator order_it);
+    void cancel_order_on_side(SideType &book_side, Order::Side side, double price, OrderIterator order_it);
 };

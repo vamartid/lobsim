@@ -5,7 +5,7 @@
 #include <iostream>
 
 template <typename Compare>
-OrderBookSide<Compare>::OrderBookSide(Side side)
+OrderBookSide<Compare>::OrderBookSide(Order::Side side)
     : side_(side), price_levels_(Compare{}) // Default construct comparator
 {
 }

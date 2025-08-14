@@ -15,8 +15,8 @@ MarketSimulator::MarketSimulator()
     {
         auto rng = std::make_shared<RealRNG>();
 
-        // Pass order_tracker_ to feeders (you'll need to update MarketFeeder constructor)
-        feeders_.push_back(std::make_unique<MarketFeeder>(order_queue_, rng, i + 1, order_tracker_));
+        // Pass order_tracker_ to feeders
+        feeders_.push_back(std::make_unique<MarketFeeder>(order_queue_, rng, i + 1, order_tracker_, num_feeders * 100));
     }
 
     // Also inject order_tracker_ into engine or matching strategy if needed

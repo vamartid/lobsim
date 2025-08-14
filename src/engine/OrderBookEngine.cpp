@@ -4,8 +4,8 @@
 
 #include <iostream>
 
-OrderBookEngine::OrderBookEngine() : bids_(Side::Buy),
-                                     asks_(Side::Sell),
+OrderBookEngine::OrderBookEngine() : bids_(Order::Side::Buy),
+                                     asks_(Order::Side::Sell),
                                      matching_strategy_(std::make_unique<DefaultMatchingStrategy>()) {
 
                                      };
@@ -17,12 +17,12 @@ void OrderBookEngine::add_order_to_side(SideType &book_side, const Order &order)
     orders_at_price.push_back(order);
 
     auto it = std::prev(orders_at_price.end()); // iterator to newly inserted order
-    id_lookup_[order.id] = std::make_tuple(order.side, order.price, it);
+    id_lookup_[order.id] = std::make_tuple(order.side(), order.price, it);
 }
 
 void OrderBookEngine::add_order(const Order &order)
 {
-    if (order.side == Side::Buy)
+    if (order.isBuy())
     {
         add_order_to_side(bids_, order);
     }
@@ -35,7 +35,7 @@ void OrderBookEngine::add_order(const Order &order)
 }
 
 template <typename SideType>
-void OrderBookEngine::cancel_order_on_side(SideType &book_side, Side side, double price, OrderIterator order_it)
+void OrderBookEngine::cancel_order_on_side(SideType &book_side, Order::Side side, double price, OrderIterator order_it)
 {
     auto &orders_at_price = book_side.price_levels()[price];
     orders_at_price.erase(order_it);
@@ -54,7 +54,7 @@ void OrderBookEngine::cancel_order(uint64_t order_id)
 
     const auto &[side, price, order_it] = found->second;
 
-    if (side == Side::Buy)
+    if (side == Order::Side::Buy)
     {
         cancel_order_on_side(bids_, side, price, order_it);
     }
@@ -93,5 +93,5 @@ void OrderBookEngine::set_order_tracker(std::shared_ptr<OrderTracker> tracker)
 template void OrderBookEngine::add_order_to_side<DescendingSide>(DescendingSide &book_side, const Order &order);
 template void OrderBookEngine::add_order_to_side<AscendingSide>(AscendingSide &book_side, const Order &order);
 
-template void OrderBookEngine::cancel_order_on_side<DescendingSide>(DescendingSide &, Side, double, OrderIterator);
-template void OrderBookEngine::cancel_order_on_side<AscendingSide>(AscendingSide &, Side, double, OrderIterator);
+template void OrderBookEngine::cancel_order_on_side<DescendingSide>(DescendingSide &, Order::Side, double, OrderIterator);
+template void OrderBookEngine::cancel_order_on_side<AscendingSide>(AscendingSide &, Order::Side, double, OrderIterator);
