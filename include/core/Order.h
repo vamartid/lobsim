@@ -166,6 +166,20 @@ public:
 
     inline bool isReservedFlag() const noexcept { return hasFlag(Control::Reserved); }
     inline void setReservedFlag(bool v) noexcept { setFlag(Control::Reserved, v); }
+
+    uint32_t effective_qty() const
+    {
+        if (isIceberg())
+            return extra.visibleQty;
+        return quantity;
+    }
+
+    uint64_t effective_weight() const
+    {
+        if (isWeighted())
+            return extra.weight;
+        return 0;
+    }
 };
 
 static_assert(sizeof(Order) == 64, "Order struct must be 64 bytes");

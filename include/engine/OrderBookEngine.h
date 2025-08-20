@@ -1,50 +1,54 @@
 #pragma once
 
+#include "core/Order.h"
+#include "engine/side/OrderBookSide.h"
 #include "engine/match/IMatchingStrategy.h"
-#include "engine/OrderBookSide.h"
+#include "engine/match/FillOp.h"
+#include "engine/match/MatchResult.h"
 #include "utils/OrderTracker.h"
 
-#include <unordered_map>
-#include <tuple>
 #include <memory>
-
-// Support for injecting different matching strategies.
-// Efficient lookup for cancellations.
-// Separated price levels using std::map<double, OrderQueue>.
-// Hooks for printing the order book and simple matching.
-
-using DescendingSide = OrderBookSide<utils::comparator::Descending>;
-using AscendingSide = OrderBookSide<utils::comparator::Ascending>;
-using OrderIterator = std::list<Order>::iterator;
+#include <vector>
+#include <cstdint>
 
 class OrderBookEngine
 {
 public:
-    OrderBookEngine();
+    OrderBookEngine(std::unique_ptr<IMatchingStrategy> strategy);
 
-    void add_order(const Order &order);
+    // Add a new order to the book and run matching
+    void add_order(Order &order);
+
+    // Cancel an existing order by ID
     void cancel_order(uint64_t order_id);
 
-    void match_order(const Order &incoming_order);
-    void print() const;
+    // Accessors for read-only views
+    const BidBookSide &bids() const { return bids_; }
+    const AskBookSide &asks() const { return asks_; }
 
-    const DescendingSide &bids() const { return bids_; }
-    const AscendingSide &asks() const { return asks_; }
+    // Set the external order tracker
     void set_order_tracker(std::shared_ptr<OrderTracker> tracker);
 
 private:
-    DescendingSide bids_;
-    AscendingSide asks_;
+    BidBookSide bids_;
+    AskBookSide asks_;
+    IOrderBookSideView &bidsView_;
+    IOrderBookSideView &asksView_;
+
     std::unique_ptr<IMatchingStrategy> matching_strategy_;
     std::shared_ptr<OrderTracker> order_tracker_;
 
-    // Your OrderBookSide::add_order/ OrderBookSide::remove_order do a linear search, which can be slow for large order books
-    // Fast lookup: id -> (side, price, iterator to order)
-    // Tracks: side (Buy or Sell) ,The price level, iterator to the exact order in the std::list<Order> inside the price level
+    // Fast lookup for cancellations: order_id -> (side, price, iterator)
+    using OrderIterator = std::list<Order>::iterator;
     std::unordered_map<uint64_t, std::tuple<Order::Side, double, OrderIterator>> id_lookup_;
 
+    // Internal helpers
     template <typename SideType>
-    void add_order_to_side(SideType &book_side, const Order &order);
+    void add_order_to_side(SideType &book_side, Order &order);
+
     template <typename SideType>
     void cancel_order_on_side(SideType &book_side, Order::Side side, double price, OrderIterator order_it);
+
+    // Apply FillOps from the strategy
+    void apply_fill_ops(const std::vector<FillOp> &fills);
 };

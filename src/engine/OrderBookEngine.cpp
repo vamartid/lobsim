@@ -1,97 +1,117 @@
-// OrderBookEngine.cpp
 #include "engine/OrderBookEngine.h"
-#include "engine/match/DefaultMatchingStrategy.h"
 
+#include <algorithm>
 #include <iostream>
 
-OrderBookEngine::OrderBookEngine() : bids_(Order::Side::Buy),
-                                     asks_(Order::Side::Sell),
-                                     matching_strategy_(std::make_unique<DefaultMatchingStrategy>()) {
-
-                                     };
-
-template <typename SideType>
-void OrderBookEngine::add_order_to_side(SideType &book_side, const Order &order)
+OrderBookEngine::OrderBookEngine(std::unique_ptr<IMatchingStrategy> strategy)
+    : bidsView_(bids_),
+      asksView_(asks_),
+      matching_strategy_(std::move(strategy))
 {
-    auto &orders_at_price = book_side.price_levels()[order.price];
-    orders_at_price.push_back(order);
-
-    auto it = std::prev(orders_at_price.end()); // iterator to newly inserted order
-    id_lookup_[order.id] = std::make_tuple(order.side(), order.price, it);
 }
 
-void OrderBookEngine::add_order(const Order &order)
+void OrderBookEngine::add_order(Order &order)
 {
+    // Determine the side
     if (order.isBuy())
-    {
         add_order_to_side(bids_, order);
-    }
     else
-    {
         add_order_to_side(asks_, order);
-    }
-    if (order_tracker_)
-        order_tracker_->add_order(order);
-}
-
-template <typename SideType>
-void OrderBookEngine::cancel_order_on_side(SideType &book_side, Order::Side side, double price, OrderIterator order_it)
-{
-    auto &orders_at_price = book_side.price_levels()[price];
-    orders_at_price.erase(order_it);
-
-    if (orders_at_price.empty())
-        book_side.price_levels().erase(price);
-
-    // Remove from lookup handled outside this function
 }
 
 void OrderBookEngine::cancel_order(uint64_t order_id)
 {
-    auto found = id_lookup_.find(order_id);
-    if (found == id_lookup_.end())
+    auto it = id_lookup_.find(order_id);
+    if (it == id_lookup_.end())
         return;
 
-    const auto &[side, price, order_it] = found->second;
+    auto &[side, price, order_it] = it->second;
 
     if (side == Order::Side::Buy)
-    {
         cancel_order_on_side(bids_, side, price, order_it);
-    }
     else
-    {
         cancel_order_on_side(asks_, side, price, order_it);
+
+    id_lookup_.erase(it);
+}
+
+template <typename SideType>
+void OrderBookEngine::add_order_to_side(SideType &book_side, Order &incoming)
+{
+    // Insert incoming order into the book
+    book_side.add_order(incoming);
+    // auto it = std::prev(book_side.price_levels_[incoming.price].end());
+    auto &orders = book_side.get_orders_at_price(incoming.price);
+    auto it = std::prev(orders.end());
+    id_lookup_[incoming.id] = std::make_tuple(incoming.side(), incoming.price, it);
+
+    // Match against opposite side (read-only view)
+    const IOrderBookSideView &oppositeView = incoming.isBuy() ? asksView_ : bidsView_;
+    std::vector<FillOp> fills;
+
+    // Strategy computes fills but does NOT mutate resting orders
+    MatchResult result = matching_strategy_->match(incoming, oppositeView, fills);
+
+    // Apply fills to resting orders and update id_lookup_
+    apply_fill_ops(fills);
+
+    // Reduce incoming quantity by filled amount
+    incoming.quantity -= result.filledQty;
+
+    // Optional: IOC or FOK handling
+    if (incoming.isIOC() && incoming.quantity > 0)
+    {
+        cancel_order_on_side(book_side, incoming.side(), incoming.price, it);
+        id_lookup_.erase(incoming.id);
     }
-    if (order_tracker_)
-        order_tracker_->remove_order(order_id);
-    id_lookup_.erase(found);
 }
 
-void OrderBookEngine::match_order(const Order &incoming_order)
+void OrderBookEngine::apply_fill_ops(const std::vector<FillOp> &fills)
 {
-    // Insert order first
-    add_order(incoming_order);
+    for (const auto &fill : fills)
+    {
 
-    // Pass the whole lookup to the strategy so it can remove matched orders quickly
-    matching_strategy_->match(
-        bids_,
-        asks_,
-        id_lookup_);
+        // // Update trackers if needed
+        // if (order_tracker_)
+        //     order_tracker_->record_fill(fill.makerOrderId, fill.qty, fill.price);
+
+        // Remove or reduce resting order
+        auto it = id_lookup_.find(fill.makerOrderId);
+        if (it != id_lookup_.end())
+        {
+            auto &[side, price, order_it] = it->second;
+            order_it->quantity -= fill.quantity;
+
+            if (order_it->quantity == 0)
+            {
+                if (side == Order::Side::Buy)
+                    cancel_order_on_side(bids_, side, price, order_it);
+                else
+                    cancel_order_on_side(asks_, side, price, order_it);
+
+                id_lookup_.erase(it);
+            }
+        }
+    }
 }
 
-void OrderBookEngine::print() const
+template <typename SideType>
+void OrderBookEngine::cancel_order_on_side(
+    SideType &book_side,
+    Order::Side,
+    double price,
+    typename std::list<Order>::iterator order_it)
 {
-    bids_.print("BUY");
-    asks_.print("SELL");
+    auto &orders = book_side.get_orders_at_price(price);
+    orders.erase(order_it);
+
+    if (book_side.empty_at_price(price))
+    {
+        book_side.remove_price_level(price);
+    }
 }
 
 void OrderBookEngine::set_order_tracker(std::shared_ptr<OrderTracker> tracker)
 {
-    order_tracker_ = std::move(tracker);
+    order_tracker_ = tracker;
 }
-
-template void OrderBookEngine::add_order_to_side<DescendingSide>(DescendingSide &book_side, const Order &order);
-template void OrderBookEngine::add_order_to_side<AscendingSide>(AscendingSide &book_side, const Order &order);
-
-template void OrderBookEngine::cancel_order_on_side<DescendingSide>(DescendingSide &, Order::Side, double, OrderIterator);
-template void OrderBookEngine::cancel_order_on_side<AscendingSide>(AscendingSide &, Order::Side, double, OrderIterator);

@@ -123,6 +123,8 @@ enable_testing()
 # -------------------------------
 # 5️⃣ Add tests dynamically and detect module dependencies
 # -------------------------------
+# Assume MODULES is a list of your static libraries, including "PriceTimePriorityStrategy"
+
 file(GLOB_RECURSE TEST_SOURCES CONFIGURE_DEPENDS "test/*.cpp")
 foreach(test_src ${TEST_SOURCES})
     get_filename_component(TEST_NAME ${test_src} NAME_WE)
@@ -143,10 +145,17 @@ foreach(test_src ${TEST_SOURCES})
 
     message(STATUS "Test ${TEST_NAME} depends on modules: ${TEST_DEPS}")
     
+    # Special handling for the PriceTimePriorityStrategy test
+    if(TEST_NAME STREQUAL "PriceTimePriorityStrategy_test")
+        # Define the macro for the static library target *before* it's linked
+        # This ensures the library is recompiled with the macro
+        target_compile_definitions(engine PRIVATE PRICE_TIME_PRIORITY_DEBUG_REDUCE_TAKER)
+    endif()
+
     target_link_libraries(${TEST_NAME} PRIVATE ${TEST_DEPS} gtest gtest_main)
     add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
-endforeach()
 
+endforeach()
 
 # -------------------------------
 # 6️⃣ Build example files

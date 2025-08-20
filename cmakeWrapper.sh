@@ -13,6 +13,7 @@ NC='\033[0m' # No color
 # --- IMPORTANT FOR UCRT ---
 # This script assumes you are running it from an MSYS2 UCRT64 shell.
 
+# Find the appropriate build tool
 if command -v ninja >/dev/null 2>&1; then
     GEN="Ninja"
     BUILD_TOOL="ninja"
@@ -42,6 +43,7 @@ clean() {
 
 build() {
     local BUILD_TYPE=$1
+    local BUILD_TARGET=$2
     local BUILD_DIR=$(get_build_dir "$BUILD_TYPE")
     local EXTRA_FLAGS=()
 
@@ -56,8 +58,13 @@ build() {
         "${EXTRA_FLAGS[@]}" \
         -S . -B "$BUILD_DIR" -G "$GEN"
 
-    echo -e "${GREEN}Building project using $BUILD_TOOL with $CORES cores in $BUILD_DIR...${NC}"
-    cmake --build "$BUILD_DIR" -- ${BUILD_PARALLEL_FLAG}"$CORES"
+    if [[ -n "$BUILD_TARGET" ]]; then
+        echo -e "${GREEN}Building specific target '$BUILD_TARGET' using $BUILD_TOOL with $CORES cores in $BUILD_DIR...${NC}"
+        cmake --build "$BUILD_DIR" --target "$BUILD_TARGET" -- ${BUILD_PARALLEL_FLAG}"$CORES"
+    else
+        echo -e "${GREEN}Building all targets using $BUILD_TOOL with $CORES cores in $BUILD_DIR...${NC}"
+        cmake --build "$BUILD_DIR" -- ${BUILD_PARALLEL_FLAG}"$CORES"
+    fi
 }
 
 case "$1" in
@@ -82,8 +89,24 @@ case "$1" in
         build "Debug"
         build "Release"
         ;;
+    -t | --target)
+        if [[ -z "$2" ]]; then
+            echo -e "${RED}Error: --target requires a target name.${NC}"
+            exit 1
+        fi
+        build "Debug" "$2"
+        ;;
+    -t-release | --target-release)
+        if [[ -z "$2" ]]; then
+            echo -e "${RED}Error: --target-release requires a target name.${NC}"
+            exit 1
+        fi
+        build "Release" "$2"
+        ;;
     *)
         echo -e "${RED}Usage: $0 [build | release | clean | cleanbuild | cleanrelease | rebuild | releaserebuild | all]${NC}"
+        echo -e "${RED}       $0 [-t|--target] <target_name> (e.g., $0 -t order_test)${NC}"
+        echo -e "${RED}       $0 [-t-release|--target-release] <target_name> (e.g., $0 --target-release order_test)${NC}"
         exit 1
         ;;
 esac
