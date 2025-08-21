@@ -19,6 +19,7 @@ public:
 
     // expose orders at price (non-const for engine use)
     OrderList &get_orders_at_price(double price);
+    const OrderList &get_orders_at_price(double price) const;
 
     // IOrderBookSideView overrides
     std::optional<double> best_price() const override;

@@ -40,7 +40,7 @@ void OrderBookEngine::add_order_to_side(SideType &book_side, Order &incoming)
 {
     // Insert incoming order into the book
     book_side.add_order(incoming);
-    // auto it = std::prev(book_side.price_levels_[incoming.price].end());
+
     auto &orders = book_side.get_orders_at_price(incoming.price);
     auto it = std::prev(orders.end());
     id_lookup_[incoming.id] = std::make_tuple(incoming.side(), incoming.price, it);
@@ -55,11 +55,12 @@ void OrderBookEngine::add_order_to_side(SideType &book_side, Order &incoming)
     // Apply fills to resting orders and update id_lookup_
     apply_fill_ops(fills);
 
-    // Reduce incoming quantity by filled amount
+    // Reduce both the book copy and the local "incoming"
+    it->quantity -= result.filledQty;
     incoming.quantity -= result.filledQty;
 
     // Optional: IOC or FOK handling
-    if (incoming.isIOC() && incoming.quantity > 0)
+    if ((incoming.isIOC() || incoming.isFOK()) && incoming.quantity > 0)
     {
         cancel_order_on_side(book_side, incoming.side(), incoming.price, it);
         id_lookup_.erase(incoming.id);

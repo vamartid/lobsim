@@ -1,23 +1,27 @@
 #include <gtest/gtest.h>
-
 #include "engine/OrderBookEngine.h"
+#include "engine/match/PriceTimePriorityStrategy.h"
 #include "test_utils/OrderFactory.h"
-#include "utils/log/StreamUtils.h"
-#include <ostream>
-#include <iostream>
 
 class OrderBookEngineTest : public ::testing::Test
 {
 protected:
+    OrderBookEngineTest()
+        : engine(std::make_unique<PriceTimePriorityStrategy>()) {}
+
     OrderBookEngine engine;
 };
 
+// --- Basic add/cancel tests ---
+
 TEST_F(OrderBookEngineTest, AddOrderAddsToCorrectSide)
 {
-    engine.add_order(TestOrderFactory::CreateBuy(1, 100.0, 10));
-    engine.add_order(TestOrderFactory::CreateSell(2, 101.0, 5));
+    auto buy = TestOrderFactory::CreateBuy(1, 100.0, 10);
+    auto sell = TestOrderFactory::CreateSell(2, 101.0, 5);
 
-    // Check best prices
+    engine.add_order(buy);
+    engine.add_order(sell);
+
     auto best_bid = engine.bids().best_price();
     auto best_ask = engine.asks().best_price();
 
@@ -30,59 +34,100 @@ TEST_F(OrderBookEngineTest, AddOrderAddsToCorrectSide)
 
 TEST_F(OrderBookEngineTest, CancelOrderRemovesOrder)
 {
-    engine.add_order(TestOrderFactory::CreateBuy(1, 100.0, 10));
+    auto buy = TestOrderFactory::CreateBuy(1, 100.0, 10);
+    engine.add_order(buy);
 
     ASSERT_TRUE(engine.bids().best_price().has_value());
 
     engine.cancel_order(1);
-
     EXPECT_FALSE(engine.bids().best_price().has_value());
 }
 
-TEST_F(OrderBookEngineTest, MatchOrderPrintsMatch)
+// --- Matching tests (PriceTimePriorityStrategy) ---
+
+TEST_F(OrderBookEngineTest, BuyMatchesSellFIFO)
 {
-    // Arrange
-    engine.add_order(TestOrderFactory::CreateSell(1, 100.0, 10));
+    // Arrange sells
+    auto sells = {
+        TestOrderFactory::CreateSell(1, 100.0, 10),
+        TestOrderFactory::CreateSell(2, 100.0, 5),
+        TestOrderFactory::CreateSell(3, 101.0, 20)};
+    for (auto sell : sells)
+        engine.add_order(sell);
 
-    // Act
-    // Capture output to a stream
-    std::ostringstream captured_os;
+    // Incoming buy
+    auto incoming = TestOrderFactory::CreateBuy(99, 100.0, 12);
+    engine.add_order(incoming);
 
-    utils::stream::capture_output(std::cout, captured_os, [&]()
-                                  { engine.match_order(TestOrderFactory::CreateBuy(2, 100.0, 5)); });
-    // Strip ANSI codes directly from the captured stream's buffer
-    std::istringstream captured_is(captured_os.str());
-    std::ostringstream clean_os;
-    utils::stream::strip_ansi(clean_os, captured_is);
+    // Assert resting book
+    auto best_ask = engine.asks().best_price();
+    ASSERT_TRUE(best_ask.has_value());
+    EXPECT_DOUBLE_EQ(best_ask.value(), 100.0); // partially filled sell #2
 
-    // Search in the cleaned stream without creating a final string copy
-    std::string line;
-    bool found_match = false, found_buy = false, found_sell = false, found_qty = false, found_price = false;
-    std::cout << clean_os.str() << '\n';
-    std::istringstream clean_is(clean_os.str());
-    while (std::getline(clean_is, line))
-    {
-        found_match |= line.find("Match Detail:") != std::string::npos;
-        found_buy |= line.find("BUY order (ID: 2)") != std::string::npos;
-        found_sell |= line.find("SELL order (ID: 1)") != std::string::npos;
-        found_qty |= line.find("for 5 units") != std::string::npos;
-        found_price |= line.find("at price 100") != std::string::npos;
-    }
-
-    // Assert
-    EXPECT_TRUE(found_match);
-    EXPECT_TRUE(found_buy);
-    EXPECT_TRUE(found_sell);
-    EXPECT_TRUE(found_qty);
-    EXPECT_TRUE(found_price);
+    // Check quantities
+    // Sell #1 gone, Sell #2 partially
+    EXPECT_EQ(engine.asks().get_orders_at_price(100.0).front().quantity, 3);
 }
 
 TEST_F(OrderBookEngineTest, NoMatchIfPricesDontCross)
 {
-    engine.add_order(TestOrderFactory::CreateSell(1, 102.0, 10));
-    std::ostringstream captured_os;
-    utils::stream::capture_output(std::cout, captured_os, [&]()
-                                  { engine.match_order(TestOrderFactory::CreateBuy(2, 100.0, 5)); });
-    // Check that nothing was printed
-    EXPECT_TRUE(captured_os.str().empty());
+    auto sell = TestOrderFactory::CreateSell(1, 102.0, 10);
+    engine.add_order(sell);
+
+    auto incoming = TestOrderFactory::CreateBuy(2, 100.0, 5);
+    engine.add_order(incoming);
+
+    // Incoming stays on bid side
+    auto best_bid = engine.bids().best_price();
+    ASSERT_TRUE(best_bid.has_value());
+    EXPECT_DOUBLE_EQ(best_bid.value(), 100.0);
+
+    // Sell untouched
+    auto best_ask = engine.asks().best_price();
+    ASSERT_TRUE(best_ask.has_value());
+    EXPECT_DOUBLE_EQ(best_ask.value(), 102.0);
+}
+
+TEST_F(OrderBookEngineTest, BuyPartialFill)
+{
+    auto sell = TestOrderFactory::CreateSell(1, 100.0, 5);
+    engine.add_order(sell);
+
+    auto incoming = TestOrderFactory::CreateBuy(2, 100.0, 10);
+    engine.add_order(incoming);
+
+    // Book state: incoming partially filled
+    auto best_bid = engine.bids().best_price();
+    ASSERT_TRUE(best_bid.has_value());
+    EXPECT_DOUBLE_EQ(best_bid.value(), 100.0);
+
+    EXPECT_EQ(engine.bids().get_orders_at_price(100.0).front().quantity, 5);
+    EXPECT_FALSE(engine.asks().best_price().has_value()); // sell consumed
+}
+
+TEST_F(OrderBookEngineTest, BuyMatchesMultiplePriceLevels)
+{
+    auto sells = {TestOrderFactory::CreateSell(1, 100.0, 5), TestOrderFactory::CreateSell(2, 101.0, 10)};
+    for (auto sell : sells)
+        engine.add_order(sell);
+    auto incoming = TestOrderFactory::CreateBuy(3, 101.0, 12);
+    engine.add_order(incoming);
+
+    // After: both sells reduced/removed
+    EXPECT_TRUE(engine.asks().get_orders_at_price(100.0).empty());           // fully consumed
+    EXPECT_EQ(engine.asks().get_orders_at_price(101.0).front().quantity, 3); // partial
+}
+
+TEST_F(OrderBookEngineTest, SellMatchesBuyFIFO)
+{
+    auto buys = {TestOrderFactory::CreateBuy(1, 101.0, 10), TestOrderFactory::CreateBuy(2, 100.0, 5)};
+    for (auto buy : buys)
+        engine.add_order(buy);
+    auto incoming = TestOrderFactory::CreateSell(3, 100.0, 12);
+    engine.add_order(incoming);
+
+    // Buy #1 fully filled
+    EXPECT_TRUE(engine.bids().get_orders_at_price(101.0).empty());
+    // Buy #2 partially filled
+    EXPECT_EQ(engine.bids().get_orders_at_price(100.0).front().quantity, 3);
 }

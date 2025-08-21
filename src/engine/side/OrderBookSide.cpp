@@ -15,6 +15,18 @@ OrderBookSide<Compare>::get_orders_at_price(double price)
 }
 
 template <typename Compare>
+const typename OrderBookSide<Compare>::OrderList &
+OrderBookSide<Compare>::get_orders_at_price(double price) const
+{
+    static const OrderList empty_list{}; // safe empty reference
+
+    auto it = price_levels_.find(price);
+    if (it != price_levels_.end())
+        return it->second;
+    return empty_list;
+}
+
+template <typename Compare>
 std::optional<double> OrderBookSide<Compare>::best_price() const
 {
     if (price_levels_.empty())

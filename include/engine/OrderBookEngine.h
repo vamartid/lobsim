@@ -45,7 +45,6 @@ private:
     // Internal helpers
     template <typename SideType>
     void add_order_to_side(SideType &book_side, Order &order);
-
     template <typename SideType>
     void cancel_order_on_side(SideType &book_side, Order::Side side, double price, OrderIterator order_it);
 
