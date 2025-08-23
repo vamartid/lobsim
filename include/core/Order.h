@@ -182,6 +182,25 @@ public:
     }
 };
 
+// Specialize std::formatter for Order
+template <>
+struct std::formatter<Order> : std::formatter<std::string>
+{
+    template <typename FormatContext>
+    auto format(const Order &o, FormatContext &ctx) const
+    {
+        // Use .2f inside the format string for fixed precision
+        return std::formatter<std::string>::format(
+            std::format(
+                "ID:{} Side:{} Price:{:.2f} Qty:{}",
+                o.id,
+                (o.isBuy() ? "BUY" : "SELL"),
+                o.price,
+                o.quantity),
+            ctx);
+    }
+};
+
 static_assert(sizeof(Order) == 64, "Order struct must be 64 bytes");
 static_assert(alignof(Order) == 64, "Order must be 64-byte aligned");
 // Compile-time guarantees

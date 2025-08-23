@@ -20,8 +20,8 @@
 #endif
 // std::random_device Realistic randomness Default for simulations
 // Fixed seed Reproducible tests or benchmarks
-MarketFeeder::MarketFeeder(ThreadSafeQueue<Order> &queue, std::shared_ptr<IRNG> rng, uint16_t feeder_id, std::shared_ptr<OrderTracker> order_tracker, uint32_t delay)
-    : queue_(queue), running_(false), order_id_(0), rng_(std::move(rng)), feeder_id_(feeder_id), order_tracker_(std::move(order_tracker)), delay_(delay)
+MarketFeeder::MarketFeeder(ThreadSafeQueue<Order> &queue, std::shared_ptr<IRNG> rng, uint16_t feeder_id, uint32_t delay)
+    : queue_(queue), running_(false), order_id_(0), rng_(std::move(rng)), feeder_id_(feeder_id), delay_(delay)
 {
 }
 
@@ -75,9 +75,9 @@ Order MarketFeeder::generate_order()
     order.quantity = static_cast<uint32_t>(rng_->uniform_int(QTY_MIN, QTY_MAX));
     // order.side = static_cast<Side>(rng_->uniform_int(SIDE_MIN, SIDE_MAX));
     order.setSide(static_cast<Order::Side>(rng_->uniform_int(0, 1)));
-    if (order_tracker_ && order_tracker_->is_enabled())
-    {
-        order_tracker_->add_order(order, feeder_id_);
-    }
+    // if (order_tracker_ && order_tracker_->is_enabled())
+    // {
+    //     order_tracker_->add_order(order, feeder_id_);
+    // }
     return order;
 }

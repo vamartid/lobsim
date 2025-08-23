@@ -64,7 +64,7 @@ MatchResult PriceTimePriorityStrategy::match(
     const uint32_t filled = incoming.quantity - remaining;
     result.filledQty = filled;
 
-#ifdef PRICE_TIME_PRIORITY_DEBUG_REDUCE_TAKER
+#ifdef PRICE_TIME_PRIORITY_DEBUG
     incoming.quantity = remaining; // Only in debug/test builds
 #endif                             // reflect planned fills on taker
 

@@ -62,8 +62,36 @@
 
 //     return 0;
 // }
-#include "simulator/MarketSimulator.h"
+// #include "simulator/MarketSimulator.h"
 
+// #include <iostream>
+// #include <chrono>
+// #include <thread>
+
+// int main()
+// {
+//     MarketSimulator simulator;
+
+//     simulator.enable_live_view(true); // Enable live view before starting
+
+//     std::cout << "Starting Market Simulator...\n";
+//     simulator.start();
+
+//     // Run the simulation for 10 seconds
+//     std::this_thread::sleep_for(std::chrono::seconds(10));
+
+//     std::cout << "Stopping Market Simulator...\n";
+//     simulator.stop();
+
+//     simulator.enable_live_view(false); // Optionally disable live view after stopping
+
+//     std::cout << "\nSimulation ended.\n";
+
+//     return 0;
+// }
+
+#include "simulator/MarketSimulator.h"
+#include "engine/listeners/OrderBookView.h"
 #include <iostream>
 #include <chrono>
 #include <thread>
@@ -72,20 +100,24 @@ int main()
 {
     MarketSimulator simulator;
 
-    simulator.enable_live_view(true); // Enable live view before starting
+    // Create a live order book view and subscribe to events
+    auto view = std::make_shared<OrderBookView>();
+    size_t handle = simulator.add_listener([view](const Event &e)
+                                           { view->on_event(e); });
 
     std::cout << "Starting Market Simulator...\n";
     simulator.start();
 
+    simulator.enable_live_view(true); // now safe to enable after start
+
     // Run the simulation for 10 seconds
-    std::this_thread::sleep_for(std::chrono::seconds(10));
+    std::this_thread::sleep_for(std::chrono::seconds(5));
 
     std::cout << "Stopping Market Simulator...\n";
     simulator.stop();
 
-    simulator.enable_live_view(false); // Optionally disable live view after stopping
+    simulator.enable_live_view(false);
 
     std::cout << "\nSimulation ended.\n";
-
     return 0;
 }

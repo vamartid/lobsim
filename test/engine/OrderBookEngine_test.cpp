@@ -2,13 +2,20 @@
 #include "engine/OrderBookEngine.h"
 #include "engine/match/PriceTimePriorityStrategy.h"
 #include "test_utils/OrderFactory.h"
+#include "engine/events/EventBus.h"
+#include "utils/log/Logger.h"
 
 class OrderBookEngineTest : public ::testing::Test
 {
 protected:
     OrderBookEngineTest()
-        : engine(std::make_unique<PriceTimePriorityStrategy>()) {}
-
+        : engine(bus, std::make_unique<PriceTimePriorityStrategy>())
+    {
+        bus.add_listener([&](const Event &e)
+                         { logger.on_event(e); }, Backpressure::Drop);
+    }
+    Logger logger;
+    EventBus bus; // dummy bus for tests
     OrderBookEngine engine;
 };
 
@@ -90,19 +97,24 @@ TEST_F(OrderBookEngineTest, NoMatchIfPricesDontCross)
 
 TEST_F(OrderBookEngineTest, BuyPartialFill)
 {
-    auto sell = TestOrderFactory::CreateSell(1, 100.0, 5);
+    // Resting sell order larger than incoming buy
+    auto sell = TestOrderFactory::CreateSell(1, 100.0, 10);
     engine.add_order(sell);
 
-    auto incoming = TestOrderFactory::CreateBuy(2, 100.0, 10);
+    // Incoming buy partially fills the resting sell
+    auto incoming = TestOrderFactory::CreateBuy(2, 100.0, 5);
     engine.add_order(incoming);
 
-    // Book state: incoming partially filled
-    auto best_bid = engine.bids().best_price();
-    ASSERT_TRUE(best_bid.has_value());
-    EXPECT_DOUBLE_EQ(best_bid.value(), 100.0);
+    // Book state: resting sell partially filled
+    auto best_ask = engine.asks().best_price();
+    ASSERT_TRUE(best_ask.has_value());
+    EXPECT_DOUBLE_EQ(best_ask.value(), 100.0);
 
-    EXPECT_EQ(engine.bids().get_orders_at_price(100.0).front().quantity, 5);
-    EXPECT_FALSE(engine.asks().best_price().has_value()); // sell consumed
+    // Remaining quantity of resting sell
+    EXPECT_EQ(engine.asks().get_orders_at_price(100.0).front().quantity, 5);
+
+    // No buy orders remain in the book
+    EXPECT_FALSE(engine.bids().best_price().has_value());
 }
 
 TEST_F(OrderBookEngineTest, BuyMatchesMultiplePriceLevels)

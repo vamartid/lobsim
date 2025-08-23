@@ -3,9 +3,13 @@
 #include "core/Order.h"
 #include "engine/side/OrderBookSide.h"
 #include "engine/match/IMatchingStrategy.h"
+
+#include "engine/match/PriceTimePriorityStrategy.h"
+
 #include "engine/match/FillOp.h"
 #include "engine/match/MatchResult.h"
-#include "utils/OrderTracker.h"
+
+#include "engine/events/EventBus.h"
 
 #include <memory>
 #include <vector>
@@ -14,7 +18,7 @@
 class OrderBookEngine
 {
 public:
-    OrderBookEngine(std::unique_ptr<IMatchingStrategy> strategy);
+    OrderBookEngine(EventBus &bus, std::unique_ptr<IMatchingStrategy> strategy = std::make_unique<PriceTimePriorityStrategy>());
 
     // Add a new order to the book and run matching
     void add_order(Order &order);
@@ -26,17 +30,17 @@ public:
     const BidBookSide &bids() const { return bids_; }
     const AskBookSide &asks() const { return asks_; }
 
-    // Set the external order tracker
-    void set_order_tracker(std::shared_ptr<OrderTracker> tracker);
-
 private:
     BidBookSide bids_;
     AskBookSide asks_;
     IOrderBookSideView &bidsView_;
     IOrderBookSideView &asksView_;
 
+    EventBus &bus_;
+    Ticks current_tick_ = 0;
+    Seq next_seq_ = 0;
+
     std::unique_ptr<IMatchingStrategy> matching_strategy_;
-    std::shared_ptr<OrderTracker> order_tracker_;
 
     // Fast lookup for cancellations: order_id -> (side, price, iterator)
     using OrderIterator = std::list<Order>::iterator;

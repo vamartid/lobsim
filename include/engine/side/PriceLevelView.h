@@ -14,3 +14,19 @@ struct PriceLevelView
     // template <typename Fn>
     // void for_each_level(Fn &&fn) const;
 };
+
+// --- PriceLevelView ---
+template <>
+struct std::formatter<PriceLevelView> : std::formatter<std::string>
+{
+    template <typename FormatContext>
+    auto format(const PriceLevelView &p, FormatContext &ctx) const
+    {
+        return std::formatter<std::string>::format(
+            std::format("Price:{:.2f} order_count:{} aggregate_qty:{}",
+                        p.price,
+                        p.order_count,
+                        p.aggregate_qty),
+            ctx);
+    }
+};

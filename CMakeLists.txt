@@ -145,11 +145,15 @@ foreach(test_src ${TEST_SOURCES})
 
     message(STATUS "Test ${TEST_NAME} depends on modules: ${TEST_DEPS}")
     
-    # Special handling for the PriceTimePriorityStrategy test
+    # Special handling for Specific test
+    #     Define the macro for the static library target *before* it's linked
+    #     This ensures the library is recompiled with the macro    
     if(TEST_NAME STREQUAL "PriceTimePriorityStrategy_test")
-        # Define the macro for the static library target *before* it's linked
-        # This ensures the library is recompiled with the macro
-        target_compile_definitions(engine PRIVATE PRICE_TIME_PRIORITY_DEBUG_REDUCE_TAKER)
+        target_compile_definitions(engine PRIVATE PRICE_TIME_PRIORITY_DEBUG)
+    endif()
+    if(TEST_NAME STREQUAL "OrderBookEngine_test")
+        message(STATUS "Test ${TEST_NAME} depends on modules: ${TEST_DEPS} build with ENABLE_DEBUG")
+        target_compile_definitions(engine PRIVATE ENABLE_DEBUG_ENGINE ENABLE_DEBUG_ORDERBOOKSIDE)
     endif()
 
     target_link_libraries(${TEST_NAME} PRIVATE ${TEST_DEPS} gtest gtest_main)

@@ -1,10 +1,20 @@
 #include "engine/side/OrderBookSide.h"
 #include "core/Order.h"
+#include "utils/log/DebugLog.h"
 
 template <typename Compare>
 void OrderBookSide<Compare>::add_order(const Order &o)
 {
     price_levels_[o.price].push_back(o);
+}
+
+template <typename Compare>
+typename OrderBookSide<Compare>::OrderList::iterator
+OrderBookSide<Compare>::add_order_and_get_iterator(const Order &o)
+{
+    auto &orders = price_levels_[o.price]; // inserts if not exists
+    orders.push_back(o);
+    return std::prev(orders.end());
 }
 
 template <typename Compare>
@@ -78,6 +88,80 @@ bool OrderBookSide<Compare>::empty_at_price(double price) const
 {
     auto it = price_levels_.find(price);
     return it == price_levels_.end() || it->second.empty();
+}
+
+// ---- side_tag specializations ----
+
+template <>
+constexpr Order::Side OrderBookSide<utils::comparator::Descending>::side_tag()
+{
+    return Order::Side::Buy;
+}
+
+template <>
+constexpr Order::Side OrderBookSide<utils::comparator::Ascending>::side_tag()
+{
+    return Order::Side::Sell;
+}
+
+// ---- Event Handling ----
+
+template <typename Compare>
+inline void OrderBookSide<Compare>::on_event(const Event &e)
+{
+    switch (e.type)
+    {
+    case EventType::OrderAdded:
+        handle_order_added(e.d.added);
+        break;
+    case EventType::OrderUpdated:
+        handle_order_updated(e.d.updated);
+        break;
+    case EventType::OrderRemoved:
+        handle_order_removed(e.d.removed.id);
+        break;
+    case EventType::Fill:
+        handle_fill(e.d.fill);
+        break;
+    default:
+        break; // LevelAgg ignored
+    }
+}
+
+// ---- Handlers (read-only in Option A) ----
+
+template <typename Compare>
+inline void OrderBookSide<Compare>::handle_order_added(const E_OrderAdded &e)
+{
+    if (e.side != side_tag())
+        return;
+    // Instead of inserting into the book, just log or update metrics
+    DEBUG_ORDERBOOKSIDE("Listener saw OrderAdded: {}", e);
+    // Example: track total notional or order count for this side
+    // total_qty_ += e.qty;
+}
+
+template <typename Compare>
+inline void OrderBookSide<Compare>::handle_order_updated(const E_OrderUpdated &e)
+{
+    DEBUG_ORDERBOOKSIDE("Listener saw OrderUpdated: {}", e);
+    // Example: could update metrics like "avg price" or "total notional"
+}
+
+template <typename Compare>
+inline void OrderBookSide<Compare>::handle_order_removed(uint64_t order_id)
+{
+    DEBUG_ORDERBOOKSIDE("Listener saw OrderRemoved: id={}", order_id);
+    // Example: adjust counters, metrics, or visualization
+}
+
+template <typename Compare>
+inline void OrderBookSide<Compare>::handle_fill(const E_Fill &f)
+{
+    DEBUG_ORDERBOOKSIDE("Listener saw Fill: {}", f);
+    // // Example: update traded volume / notional
+    // traded_volume_ += f.qty;
+    // traded_notional_ += f.qty * f.price;
 }
 
 // Explicit instantiations

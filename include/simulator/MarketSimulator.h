@@ -6,6 +6,9 @@
 #include "core/MarketFeeder.h"
 #include "engine/OrderBookEngine.h"
 #include "utils/random/IRNG.h"
+#include "engine/listeners/OrderBookView.h"
+#include "engine/listeners/StatsCollector.h"
+#include "engine/listeners/MarketDataPublisher.h"
 
 #include <thread>
 #include <atomic>
@@ -18,22 +21,36 @@ public:
     void stop();
 
     void enable_live_view(bool enable);
-    void start_live_view_thread();
-    void stop_live_view_thread();
+
+    size_t add_listener(EventBus::Callback cb);
 
 private:
     void engine_loop();
 
     ThreadSafeQueue<Order> order_queue_;
-    std::shared_ptr<IRNG> rng_;
-    // MarketFeeder feeder_; // Use default RNG template param
-    std::vector<std::unique_ptr<MarketFeeder>> feeders_; // multiple feeders
-    OrderBookEngine engine_;
+    std::atomic<bool> running_{false};
 
-    std::atomic<bool> live_view_enabled_{false}; // atomic for thread safety
-    std::shared_ptr<OrderTracker> order_tracker_;
-    std::thread live_view_thread_;
+    EventBus bus_;           // central event dispatcher
+    OrderBookEngine engine_; // engine now subscribes to EventBus
 
-    std::atomic<bool> running_;
+    // Event-driven live view components
+    std::shared_ptr<OrderBookView> live_view_; // optional live L2 view
+    std::shared_ptr<StatsCollector> stats_;
+    std::shared_ptr<MarketDataPublisher> publisher_;
+    std::vector<std::pair<std::shared_ptr<void>, size_t>> live_view_listeners_;
+
     std::thread engine_thread_;
+    std::vector<std::unique_ptr<MarketFeeder>> feeders_; // multiple feeders default RNG
+
+    template <typename ListenerType, typename... Args>
+    std::shared_ptr<ListenerType> make_and_register_listener(
+        std::vector<std::pair<std::shared_ptr<void>, size_t>> &container,
+        Args &&...args)
+    {
+        auto listener = std::make_shared<ListenerType>(std::forward<Args>(args)...);
+        size_t id = bus_.add_listener([listener](const Event &e)
+                                      { listener->on_event(e); });
+        container.emplace_back(listener, id);
+        return listener;
+    }
 };

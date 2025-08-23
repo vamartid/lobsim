@@ -13,7 +13,7 @@
 class MarketFeeder
 {
 public:
-    MarketFeeder(ThreadSafeQueue<Order> &queue, std::shared_ptr<IRNG> rng, uint16_t feeder_id = 0, std::shared_ptr<OrderTracker> order_tracker = nullptr, uint32_t delay = 0);
+    MarketFeeder(ThreadSafeQueue<Order> &queue, std::shared_ptr<IRNG> rng, uint16_t feeder_id = 0, uint32_t delay = 0);
     void start();
     void stop();
 
@@ -40,7 +40,6 @@ private:
     uint32_t delay_;                // Shift of the delay initial (DELAY_MIN-DELAY_MAX)
     uint16_t feeder_id_;
     uint64_t order_id_;
-    std::shared_ptr<OrderTracker> order_tracker_;
 
     // Random generators
     std::shared_ptr<IRNG> rng_; // store RNG interface
