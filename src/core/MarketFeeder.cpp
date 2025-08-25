@@ -70,7 +70,9 @@ Order MarketFeeder::generate_order()
     using Side = Order::Side;
     Order order; // we basicaly call the default constructor and then set each field
     ASSIGN_ORDER_ID(order, feeder_id_, order_id_);
-    order.timestamp = std::chrono::steady_clock::now().time_since_epoch().count();
+    order.timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
+                          std::chrono::steady_clock::now().time_since_epoch())
+                          .count();
     order.price = rng_->uniform_real(PRICE_MIN, PRICE_MAX);
     order.quantity = static_cast<uint32_t>(rng_->uniform_int(QTY_MIN, QTY_MAX));
     // order.side = static_cast<Side>(rng_->uniform_int(SIDE_MIN, SIDE_MAX));

@@ -9,7 +9,8 @@ OrderBookEngine::OrderBookEngine(EventBus &bus, std::unique_ptr<IMatchingStrateg
     : bidsView_(bids_),
       asksView_(asks_),
       bus_(bus),
-      matching_strategy_(std::move(strategy))
+      matching_strategy_(std::move(strategy)),
+      tick_times_(std::make_unique<WallTime[]>(MAX_TICKS))
 {
     // Subscribe book sides to the bus
     bus_.add_listener([this](const Event &e)
@@ -18,8 +19,37 @@ OrderBookEngine::OrderBookEngine(EventBus &bus, std::unique_ptr<IMatchingStrateg
                       { asks_.on_event(e); });
 }
 
+WallTime OrderBookEngine::get_current_wall_time() const
+{
+    // real-world timestamp in milliseconds
+    using namespace std::chrono;
+    return duration_cast<milliseconds>(
+               steady_clock::now().time_since_epoch())
+        .count();
+}
+
+void OrderBookEngine::advance_tick()
+{
+    if (current_tick_ >= MAX_TICKS)
+        current_tick_ = 0; // or handle overflow differently
+    // Increment the logical tick once per engine cycle
+    current_tick_++;
+    // save real-world timestamp per tick
+    tick_times_[current_tick_] = get_current_wall_time();
+    // Reset sequence number at the start of each tick
+    next_seq_ = 0;
+}
+
+std::span<const WallTime> OrderBookEngine::tick_wall_times() const
+{
+    return std::span{tick_times_.get(), MAX_TICKS};
+}
+
 void OrderBookEngine::add_order(Order &order)
 {
+    // advance time ticks & seq
+    advance_tick();
+
     // Determine the side
     if (order.isBuy())
         add_order_to_side(bids_, order);

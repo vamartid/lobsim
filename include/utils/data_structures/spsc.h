@@ -34,6 +34,24 @@ public:
         tail_.store(t + 1, std::memory_order_release);
         return true;
     }
+    std::vector<T> snapshot(size_t n = 0) const
+    {
+        std::vector<T> out;
+        auto t = tail_.load(std::memory_order_acquire);
+        auto h = head_.load(std::memory_order_acquire);
+        size_t total = h - t;
+
+        if (n == 0 || n > total)
+            n = total;
+
+        out.reserve(n);
+        size_t start = (t + total - n) & mask_;
+        for (size_t i = 0; i < n; ++i)
+        {
+            out.push_back(buf_[(start + i) & mask_]);
+        }
+        return out;
+    }
 
 private:
     size_t mask_;

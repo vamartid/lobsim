@@ -34,9 +34,6 @@ endforeach()
 # -------------------------------
 # 3️⃣ Detect and link module dependencies recursively
 # -------------------------------
-# -------------------------------
-# 3️⃣ Detect and link module dependencies recursively
-# -------------------------------
 foreach(mod ${MODULES})
     set(PRIVATE_DEPENDENCIES "")
     set(PUBLIC_DEPENDENCIES "")

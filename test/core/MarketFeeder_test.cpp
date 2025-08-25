@@ -160,7 +160,6 @@ TEST(MarketFeederMockTest, ProducesOrdersWithMockedPriceAndQuantity)
     feeder.stop();
 
     auto order = queue.wait_and_pop();
-    std::cout << order.to_string() << "\n";
     // ASSERT_TRUE(order);
     EXPECT_TRUE(order.isSell());
     EXPECT_EQ(order.quantity, 50u);

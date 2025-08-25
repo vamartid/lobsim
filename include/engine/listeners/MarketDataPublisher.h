@@ -2,26 +2,22 @@
 
 #include <memory>
 #include <vector>
-#include "engine/listeners/OrderBookView.h"
-#include "engine/listeners/StatsCollector.h"
-#include "engine/events/Events.h"
 #include <ostream>
+#include "engine/events/Events.h"
+#include "engine/views/Dashboard.h"
+
 // MarketDataPublisher subscribes to EventBus and renders a terminal UI
 class MarketDataPublisher
 {
 public:
-    MarketDataPublisher(std::shared_ptr<OrderBookView> book,
-                        std::shared_ptr<StatsCollector> stats);
-
+    explicit MarketDataPublisher(std::unique_ptr<Dashboard> dashboard);
     // Called on each event via EventBus
     void on_event(const Event &e);
 
 private:
     void refresh_terminal();
-    size_t prepare_terminal_view(std::ostream &os);
 
-    std::shared_ptr<OrderBookView> book_;
-    std::shared_ptr<StatsCollector> stats_;
+    std::unique_ptr<Dashboard> dashboard_;
 
     // For throttling refresh (optional)
     size_t event_counter_ = 0;

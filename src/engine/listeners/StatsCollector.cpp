@@ -7,13 +7,28 @@ void StatsCollector::on_event(const Event &e)
     {
     case EventType::Fill:
         total_fills_++;
+        if (trade_buffer_)
+        {
+            TradeInfo ti{
+                e.d.fill.makerId, // uint64_t → ok
+                e.d.fill.takerId, // uint64_t → ok
+                e.d.fill.px,      // double → double, should be fine
+                e.d.fill.qty,     // int64_t → int64_t, should be fine
+                e.ts,             // uint32_t → double? or uint64_t in TradeInfo?
+                e.seq             // sequence number already assigned by engine
+            };
+            trade_buffer_->push(ti);
+        }
         break;
+
     case EventType::OrderAdded:
         total_orders_++;
         break;
+
     case EventType::OrderRemoved:
         total_cancels_++;
         break;
+
     case EventType::LevelAgg:
     {
         std::lock_guard lock(mtx_);
@@ -23,6 +38,7 @@ void StatsCollector::on_event(const Event &e)
             best_ask_ = e.d.level.px;
     }
     break;
+
     default:
         break;
     }

@@ -4,8 +4,8 @@
 #include <cstdint>
 #include <format>
 
-using Seq = uint64_t;
-using Ticks = uint64_t;
+using Seq = uint32_t;
+using Ticks = uint32_t;
 
 // We keep payload POD only
 // structs uint64_t, int64_t, double and Order::Side enum class
