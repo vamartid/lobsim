@@ -2,7 +2,6 @@
 #pragma once
 
 #include "utils/data_structures/ThreadSafeQueue.h"
-#include "utils/OrderTracker.h"
 #include "core/MarketFeeder.h"
 #include "engine/OrderBookEngine.h"
 #include "utils/random/IRNG.h"

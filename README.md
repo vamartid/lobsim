@@ -135,13 +135,20 @@ LOBSim uses **CMake** (≥3.20) with a clear separation between include and src:
 
 ## 🖥️ Terminal Views (TODO)
 
-The simulator includes multiple professional **terminal-style market views**:  
+The simulator includes multiple professional **terminal-style market views** with extensible design
 1. **Market Depth Ladder** → Bids/asks with quantities at top levels.  
 2. **Trade/Fill View** → Streams recent trades.  
 3. **Stats Overlay** → Aggregated statistics (fills, spread).  
 
 All views update **in-place** using ANSI cursor moves for **flicker-free refreshing**.
 
+Controls the views with keys through MarketDataPublisher:
+- Key [1] OrderBookViewRenderer
+- Key [2] StatsViewRenderer
+- Key [3] TradesViewRenderer
+
+### Current view
+![alt text](preview.gif)
 ---
 
 ## 🚀 Example Usage

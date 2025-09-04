@@ -10,6 +10,9 @@ public:
     // Render into provided ostream. Return how many lines were printed.
     virtual size_t render(std::ostream &os) = 0;
 
-    // Optional: handle key input
-    virtual void on_key(char key) {}
+    void set_visible(bool v) { visible_ = v; }
+    bool visible() const { return visible_; }
+
+private:
+    bool visible_ = true;
 };

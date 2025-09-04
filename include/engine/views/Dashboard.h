@@ -1,7 +1,7 @@
 #pragma once
+#include "engine/views/IView.h"
 #include <memory>
 #include <vector>
-#include "engine/views/IView.h"
 
 class Dashboard
 {
@@ -16,11 +16,26 @@ public:
         size_t total_lines = 0;
         for (auto &v : views_)
         {
-            total_lines += v->render(os);
-            os << "\n"; // spacing between views
-            total_lines++;
+            if (v->visible())
+            {
+                total_lines += v->render(os);
+                os << "\n"; // spacing between views
+                total_lines++;
+            }
         }
         return total_lines;
+    }
+
+    void toggle_view(size_t index)
+    {
+        if (index < views_.size())
+            views_[index]->set_visible(!views_[index]->visible());
+    }
+
+    void set_view_visible(size_t index, bool visible)
+    {
+        if (index < views_.size())
+            views_[index]->set_visible(visible);
     }
 
 private:

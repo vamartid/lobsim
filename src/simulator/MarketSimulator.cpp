@@ -82,7 +82,7 @@ void MarketSimulator::enable_live_view(bool enable)
         auto dashboard = std::make_unique<Dashboard>();
         dashboard->add_view(std::make_unique<OrderBookViewRenderer>(live_orderbook));
         dashboard->add_view(std::make_unique<StatsViewRenderer>(live_stats));
-        dashboard->add_view(std::make_unique<TradesViewRenderer>(trade_buffer, engine_.tick_wall_times()));
+        dashboard->add_view(std::make_unique<TradesViewRenderer>(trade_buffer, engine_.tick_wall_times(), 5));
 
         // Publisher (wraps dashboard, connects to bus, owns dashboard)
         make_and_add_listener_to_bus<MarketDataPublisher>(live_view_listeners_, std::move(dashboard));
